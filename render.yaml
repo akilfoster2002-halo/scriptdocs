@@ -1,0 +1,29 @@
+# Render Blueprint. Deploy with:
+#   https://dashboard.render.com/blueprints  ->  New Blueprint Instance
+#
+# DATABASE_URL and JWT_SECRET are wired automatically; nothing secret
+# lives in this file.
+services:
+  - type: web
+    name: scriptdocs
+    runtime: node
+    plan: free
+    region: virginia
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scriptdocs-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: scriptdocs-db
+    plan: free
+    region: virginia
+    postgresMajorVersion: "17"

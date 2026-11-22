@@ -1,0 +1,35 @@
+{
+  "name": "scriptdocs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time collaborative script writing, in the spirit of Google Docs.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "client"
+  ],
+  "scripts": {
+    "build": "npm --workspace client run build",
+    "start": "node server/index.js",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "npm --workspace client run dev",
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev:server\" \"npm run dev:client\""
+  },
+  "dependencies": {
+    "compression": "^1.7.5",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "lib0": "^0.2.99",
+    "pg": "^8.13.1",
+    "ws": "^8.18.0",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.21"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
