@@ -18,6 +18,7 @@ export default function CommentsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [showResolved, setShowResolved] = useState(false);
+  const [selection, setSelection] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -32,12 +33,20 @@ export default function CommentsPanel({
     void refresh();
   }, [refresh, refreshKey]);
 
-  function selectedText() {
-    if (!editor) return '';
-    const { from, to } = editor.state.selection;
-    if (from === to) return '';
-    return editor.state.doc.textBetween(from, to, ' ').slice(0, 280);
-  }
+  useEffect(() => {
+    if (!editor) return;
+    const read = () => {
+      const { from, to } = editor.state.selection;
+      setSelection(from === to ? '' : editor.state.doc.textBetween(from, to, ' ').slice(0, 280));
+    };
+    read();
+    editor.on('selectionUpdate', read);
+    editor.on('transaction', read);
+    return () => {
+      editor.off('selectionUpdate', read);
+      editor.off('transaction', read);
+    };
+  }, [editor]);
 
   async function onSubmit(event) {
     event.preventDefault();
@@ -46,7 +55,7 @@ export default function CommentsPanel({
     setBusy(true);
     setError(null);
     try {
-      await docsApi.addComment(docId, text, selectedText());
+      await docsApi.addComment(docId, text, selection);
       setBody('');
       await refresh();
     } catch (err) {
@@ -138,8 +147,8 @@ export default function CommentsPanel({
 
       {canComment && (
         <form className="comment-form" onSubmit={onSubmit}>
-          {selectedText() && (
-            <blockquote className="comment-quote comment-quote-preview">{selectedText()}</blockquote>
+          {selection && (
+            <blockquote className="comment-quote comment-quote-preview">{selection}</blockquote>
           )}
           <textarea
             value={body}
