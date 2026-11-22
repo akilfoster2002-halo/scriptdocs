@@ -1,28 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Collaboration from '@tiptap/extension-collaboration';
-import CollaborationCaret from '@tiptap/extension-collaboration-caret';
-import TextAlign from '@tiptap/extension-text-align';
-import Highlight from '@tiptap/extension-highlight';
-import { CharacterCount, Placeholder } from '@tiptap/extensions';
-import { Color, FontSize, TextStyle } from '@tiptap/extension-text-style';
-
 import { useAuth } from '../lib/auth.jsx';
 import { useCollab } from '../lib/useCollab.js';
 import { useEvents } from '../lib/useEvents.js';
 import { docs as docsApi, ROLE_LABEL } from '../lib/api.js';
-import { personName, relativeTime } from '../lib/format.js';
-import Toolbar from '../components/Toolbar.jsx';
+import { personName } from '../lib/format.js';
 import Avatar from '../components/Avatar.jsx';
 import UserMenu from '../components/UserMenu.jsx';
 import ShareDialog from '../components/ShareDialog.jsx';
-import CommentsPanel from '../components/CommentsPanel.jsx';
+import DocumentSurface from '../components/DocumentSurface.jsx';
 
 export default function Editor() {
   const { docId } = useParams();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [doc, setDoc] = useState(null);
@@ -100,51 +90,6 @@ export default function Editor() {
     identity,
   });
 
-  // --- editor ----------------------------------------------------------
-  const editor = useEditor(
-    {
-      extensions: ydoc
-        ? [
-            // undoRedo must be off: Collaboration brings its own undo stack,
-            // scoped so you never undo a collaborator's typing.
-            StarterKit.configure({
-              undoRedo: false,
-              link: { openOnClick: false, autolink: true },
-            }),
-            TextStyle,
-            FontSize,
-            Color,
-            Highlight.configure({ multicolor: true }),
-            TextAlign.configure({ types: ['heading', 'paragraph'] }),
-            Placeholder.configure({ placeholder: 'Start writing your script…' }),
-            CharacterCount,
-            Collaboration.configure({ document: ydoc }),
-            ...(provider
-              ? [CollaborationCaret.configure({ provider, user: identity })]
-              : []),
-          ]
-        : [],
-      editable: canEdit,
-      editorProps: {
-        attributes: {
-          class: 'page-body',
-          spellcheck: 'true',
-        },
-      },
-    },
-    [ydoc, provider]
-  );
-
-  useEffect(() => {
-    editor?.setEditable(canEdit);
-  }, [editor, canEdit]);
-
-  useEffect(() => {
-    if (editor && identity) {
-      editor.commands.updateUser?.(identity);
-    }
-  }, [editor, identity]);
-
   // --- title ------------------------------------------------------------
   const onTitleChange = useCallback(
     (value) => {
@@ -181,8 +126,6 @@ export default function Editor() {
       </div>
     );
   }
-
-  const words = editor?.storage.characterCount?.words?.() ?? 0;
 
   return (
     <div className="editor-shell">
@@ -255,30 +198,33 @@ export default function Editor() {
         </div>
       </header>
 
-      <Toolbar editor={editor} canEdit={canEdit} />
-
-      <div className={commentsOpen ? 'editor-body with-panel' : 'editor-body'}>
-        <div className="page-scroll">
-          <div className="page">
-            {editor ? <EditorContent editor={editor} /> : <div className="page-body" />}
+      {ydoc && provider ? (
+        <DocumentSurface
+          key={docId}
+          docId={docId}
+          doc={doc}
+          ydoc={ydoc}
+          provider={provider}
+          identity={identity}
+          canEdit={canEdit}
+          canComment={canComment}
+          isOwner={role === 'owner'}
+          commentsOpen={commentsOpen}
+          commentsBump={commentsBump}
+          onCloseComments={() => setCommentsOpen(false)}
+        />
+      ) : (
+        <>
+          <div className="toolbar" />
+          <div className="editor-body">
+            <div className="page-scroll">
+              <div className="page">
+                <p className="muted">Opening the script…</p>
+              </div>
+            </div>
           </div>
-          <div className="page-footer">
-            <span>{words} {words === 1 ? 'word' : 'words'}</span>
-            {doc?.updated_at && <span>Edited {relativeTime(doc.updated_at)}</span>}
-          </div>
-        </div>
-
-        {commentsOpen && canComment && (
-          <CommentsPanel
-            docId={docId}
-            editor={editor}
-            canComment={canComment}
-            isOwner={role === 'owner'}
-            refreshKey={commentsBump}
-            onClose={() => setCommentsOpen(false)}
-          />
-        )}
-      </div>
+        </>
+      )}
 
       {shareOpen && (
         <ShareDialog docId={docId} doc={doc} onClose={() => setShareOpen(false)} />
