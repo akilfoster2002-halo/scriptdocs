@@ -15,7 +15,8 @@
     "start": "node server/index.js",
     "dev:server": "node --watch server/index.js",
     "dev:client": "npm --workspace client run dev",
-    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev:server\" \"npm run dev:client\""
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev:server\" \"npm run dev:client\"",
+    "user:remove": "node scripts/remove-user.js"
   },
   "dependencies": {
     "compression": "^1.7.5",

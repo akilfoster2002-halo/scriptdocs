@@ -132,6 +132,32 @@ Two things to know about the free tier:
   an idle spell takes a few seconds, and open websockets are dropped while it
   sleeps. Clients reconnect automatically.
 
+## Maintenance
+
+There is no admin UI. To remove an account and everything it owns:
+
+```bash
+npm run user:remove -- someone@example.com
+```
+
+It needs `DATABASE_URL` in `.env`. Scripts owned by that person are
+deleted with them; scripts owned by others keep working, minus that
+person's access.
+
+### Test accounts to clear out
+
+This deployment was verified with three throwaway accounts. **Remove them
+before sharing the app**, since their passwords are not secret:
+
+```bash
+npm run user:remove -- ada@scriptdocs.test grace@scriptdocs.test mallory@scriptdocs.test
+```
+
+Getting `DATABASE_URL` for this: open the database in the Render
+dashboard, add your IP under **Networking → IP Allow List**, then copy the
+**External** connection string. (By default the database accepts only
+internal connections, which is why this needs a deliberate step.)
+
 ## Things it deliberately does not do
 
 - **No email delivery.** Sharing works by looking up an existing account, so
