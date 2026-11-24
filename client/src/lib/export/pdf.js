@@ -5,22 +5,22 @@ import { readScript, wrapText } from './script.js';
  *
  * The geometry is the standard: US Letter, a 6" text column inside a 1.5"
  * left and 1" right margin, 12pt Courier at 10 characters per inch and 6
- * lines per inch, giving 55 lines of body text per page.
+ * lines per inch, giving 54 lines of body text per page.
  *
- * The work that matters is pagination. A script is not a document that
- * happens to break every so often — a cue must never be stranded at the
- * foot of a page, a heading must not dangle with nothing under it, and a
- * speech split across pages carries (MORE) and (CONT'D). Readers notice,
- * and so do the people who time scripts by the page.
+ * Pagination is the part that matters, so it lives in `paginate` as a pure
+ * function over plain objects — no PDF engine involved. A script is not a
+ * document that happens to break every so often: a cue must never be
+ * stranded at the foot of a page, a heading must not dangle with nothing
+ * under it, and a speech split across pages carries (MORE) and (CONT'D).
  */
 
-const PAGE = { width: 8.5, height: 11 };
-const MARGIN = { top: 1, bottom: 1, left: 1.5, right: 1 };
-const LINE = 1 / 6;
-const BODY_LINES = 54;
+export const PAGE = { width: 8.5, height: 11 };
+export const MARGIN = { top: 1, bottom: 1, left: 1.5, right: 1 };
+export const LINE = 1 / 6;
+export const BODY_LINES = 54;
 
 // Indents from the page's left edge, and column widths in characters.
-const LAYOUT = {
+export const LAYOUT = {
   scene: { indent: 1.5, width: 60, bold: true },
   action: { indent: 1.5, width: 60 },
   character: { indent: 3.7, width: 33 },
@@ -39,7 +39,11 @@ function spacingBefore(previous, current) {
   return 1;
 }
 
-/** Turn the script into laid-out blocks of wrapped lines. */
+function bareName(text) {
+  return text.replace(/\([^)]*\)\s*$/, '').trim();
+}
+
+/** Wrap each block to its column and work out the gaps between them. */
 function layout(blocks) {
   const out = [];
   let previous = null;
@@ -58,8 +62,101 @@ function layout(blocks) {
   return out;
 }
 
-function bareName(text) {
-  return text.replace(/\([^)]*\)\s*$/, '').trim();
+/**
+ * Lay the script out into pages of draw operations.
+ * Returns [[{ text, element, row, bold, align, indent }, ...], ...].
+ */
+export function paginate(blocks) {
+  const laid = layout(blocks);
+  const pages = [[]];
+  let row = 0;
+  let speaker = null;
+
+  const page = () => pages[pages.length - 1];
+  const breakPage = () => {
+    pages.push([]);
+    row = 0;
+  };
+  const put = (text, config, element) =>
+    page().push({
+      text,
+      element,
+      row,
+      bold: Boolean(config.bold),
+      align: config.align || 'left',
+      indent: config.indent,
+    });
+
+  for (const block of laid) {
+    const { config, lines, element } = block;
+    if (element === 'character') speaker = bareName(lines.join(' '));
+
+    let spacing = row === 0 ? 0 : block.spacing;
+    const remaining = BODY_LINES - row - spacing;
+
+    // A heading with nothing under it belongs on the next page.
+    if (element === 'scene' && remaining < lines.length + 2) {
+      breakPage();
+      spacing = 0;
+    }
+    // A cue must keep at least one line of its speech company.
+    else if (element === 'character' && remaining < lines.length + 1) {
+      breakPage();
+      spacing = 0;
+    }
+    // Anything else short enough to travel whole, moves whole.
+    else if (remaining < lines.length && element !== 'dialogue' && element !== 'action') {
+      breakPage();
+      spacing = 0;
+    }
+
+    row += spacing;
+
+    let drawn = 0;
+    while (drawn < lines.length) {
+      const room = BODY_LINES - row;
+      if (room <= 0) {
+        breakPage();
+        continue;
+      }
+
+      const canDraw = Math.min(room, lines.length - drawn);
+      const willSplit = drawn + canDraw < lines.length;
+
+      // Splitting a speech needs a line spare for the (MORE) beneath it.
+      if (willSplit && element === 'dialogue') {
+        const usable = Math.min(canDraw, room - 1);
+        // Two lines is the least worth leaving behind.
+        if (usable < 2) {
+          breakPage();
+          continue;
+        }
+        for (let n = 0; n < usable; n += 1) {
+          put(lines[drawn + n], config, element);
+          row += 1;
+        }
+        drawn += usable;
+
+        put('(MORE)', LAYOUT.character, 'more');
+        breakPage();
+        if (speaker) {
+          put(`${speaker} (CONT'D)`, LAYOUT.character, 'character');
+          row += 1;
+        }
+        continue;
+      }
+
+      for (let n = 0; n < canDraw; n += 1) {
+        put(lines[drawn + n], config, element);
+        row += 1;
+      }
+      drawn += canDraw;
+
+      if (drawn < lines.length) breakPage();
+    }
+  }
+
+  return pages;
 }
 
 export async function toPdf(doc, { title, author } = {}) {
@@ -70,8 +167,6 @@ export async function toPdf(doc, { title, author } = {}) {
   const pdf = new jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
   pdf.setFont('courier', 'normal');
   pdf.setFontSize(12);
-
-  const blocks = layout(readScript(doc));
 
   // ------------------------------------------------------------ title page
   if (title) {
@@ -91,119 +186,29 @@ export async function toPdf(doc, { title, author } = {}) {
   }
 
   // ----------------------------------------------------------------- body
-  let pageNumber = 1;
-  let row = 0; // lines used on the current page
-  let currentCharacter = null;
+  const pages = paginate(readScript(doc));
 
-  const newPage = () => {
-    pdf.addPage();
-    pageNumber += 1;
-    row = 0;
-  };
+  pages.forEach((ops, index) => {
+    if (index > 0) pdf.addPage();
 
-  const draw = (text, config, lineIndex) => {
-    const y = MARGIN.top + (lineIndex + 1) * LINE;
-    pdf.setFont('courier', config.bold ? 'bold' : 'normal');
-    if (config.align === 'right') {
-      pdf.text(text, PAGE.width - MARGIN.right, y, { align: 'right' });
-    } else {
-      pdf.text(text, config.indent, y);
-    }
-  };
-
-  const pageNumberFor = (n) => {
-    if (n === 1) return; // the first page is not numbered
-    pdf.setFont('courier', 'normal');
-    pdf.text(`${n}.`, PAGE.width - MARGIN.right, MARGIN.top - 0.5 + LINE, { align: 'right' });
-  };
-
-  const stampedPages = new Set();
-  const stamp = () => {
-    if (stampedPages.has(pageNumber)) return;
-    stampedPages.add(pageNumber);
-    pageNumberFor(pageNumber);
-  };
-  stamp();
-
-  for (let i = 0; i < blocks.length; i += 1) {
-    const block = blocks[i];
-    const { config, lines, element } = block;
-
-    if (element === 'character') currentCharacter = bareName(block.lines.join(' '));
-
-    let spacing = row === 0 ? 0 : block.spacing;
-
-    // --- keep rules -------------------------------------------------
-    const remaining = BODY_LINES - row - spacing;
-
-    // A heading with nothing under it belongs on the next page.
-    if (element === 'scene' && remaining < lines.length + 2) {
-      newPage();
-      stamp();
-      spacing = 0;
-    }
-    // A cue must keep at least one line of its speech company.
-    else if (element === 'character' && remaining < lines.length + 1) {
-      newPage();
-      stamp();
-      spacing = 0;
-    }
-    // Everything else: move it whole if it fits on a fresh page.
-    else if (remaining < lines.length && element !== 'dialogue' && element !== 'action') {
-      newPage();
-      stamp();
-      spacing = 0;
+    // The first page of the script proper is not numbered.
+    if (index > 0) {
+      pdf.setFont('courier', 'normal');
+      pdf.text(`${index + 1}.`, PAGE.width - MARGIN.right, MARGIN.top - 0.5 + LINE, {
+        align: 'right',
+      });
     }
 
-    row += spacing;
-
-    // --- draw, splitting speeches properly --------------------------
-    let drawn = 0;
-    while (drawn < lines.length) {
-      const room = BODY_LINES - row;
-
-      if (room <= 0) {
-        newPage();
-        stamp();
-        continue;
-      }
-
-      const canDraw = Math.min(room, lines.length - drawn);
-      const willSplit = drawn + canDraw < lines.length;
-
-      // Splitting a speech needs room for the (MORE) that goes under it.
-      if (willSplit && element === 'dialogue') {
-        const usable = Math.min(canDraw, room - 1);
-        if (usable < 2) {
-          // Not worth a two-line orphan; move the rest to the next page.
-          newPage();
-          stamp();
-          continue;
-        }
-        for (let n = 0; n < usable; n += 1) draw(lines[drawn + n], config, row + n);
-        row += usable;
-        drawn += usable;
-
-        draw('(MORE)', LAYOUT.character, row);
-        newPage();
-        stamp();
-        if (currentCharacter) {
-          draw(`${currentCharacter} (CONT'D)`, LAYOUT.character, row);
-          row += 1;
-        }
-        continue;
-      }
-
-      for (let n = 0; n < canDraw; n += 1) draw(lines[drawn + n], config, row + n);
-      row += canDraw;
-      drawn += canDraw;
-
-      if (drawn < lines.length) {
-        newPage();
-        stamp();
+    for (const op of ops) {
+      const y = MARGIN.top + (op.row + 1) * LINE;
+      pdf.setFont('courier', op.bold ? 'bold' : 'normal');
+      if (op.align === 'right') {
+        pdf.text(op.text, PAGE.width - MARGIN.right, y, { align: 'right' });
+      } else {
+        pdf.text(op.text, op.indent, y);
       }
     }
-  }
+  });
 
   return pdf.output('blob');
 }
