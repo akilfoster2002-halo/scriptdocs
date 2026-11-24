@@ -482,6 +482,7 @@ button { font-family: inherit; }
 .page-body .sp + .sp-scene { margin-top: 24pt; }
 
 .sp-scene {
+  /* The text is uppercased for real on input; this only catches paste. */
   text-transform: uppercase;
   font-weight: 700;
 }

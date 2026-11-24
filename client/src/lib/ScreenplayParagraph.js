@@ -52,16 +52,22 @@ export const ScreenplayParagraph = Node.create({
     return {
       setScreenplayElement:
         (element) =>
-        ({ commands }) =>
-          commands.updateAttributes('paragraph', { element }),
+        ({ state, tr, dispatch }) => {
+          const { $from } = state.selection;
+          const node = $from.parent;
+          if (node.type.name !== 'paragraph') return false;
+          if (dispatch) {
+            applyElement(tr, $from.before($from.depth), node, element);
+            dispatch(tr);
+          }
+          return true;
+        },
 
       cycleScreenplayElement:
         (direction = 1) =>
         ({ state, commands }) => {
           const current = elementOf(state.selection.$from.parent);
-          return commands.updateAttributes('paragraph', {
-            element: cycleElement(current, direction),
-          });
+          return commands.setScreenplayElement(cycleElement(current, direction));
         },
     };
   },
@@ -99,6 +105,29 @@ export const ScreenplayParagraph = Node.create({
 
 // --------------------------------------------------------------- behaviour
 
+/**
+ * Uppercase the text already in a block, preserving any marks on it.
+ *
+ * CSS text-transform would only change how the line is painted; the
+ * characters underneath would stay as typed and leave the editor wrong.
+ * Replacements are the same length, so positions do not shift.
+ */
+function uppercaseBlock(tr, pos, node) {
+  node.descendants((child, offset) => {
+    if (!child.isText || !child.text) return;
+    const upper = child.text.toUpperCase();
+    if (upper === child.text) return;
+    const from = pos + 1 + offset;
+    tr.replaceWith(from, from + child.text.length, node.type.schema.text(upper, child.marks));
+  });
+}
+
+/** Set a block's element, applying that element's casing to what is there. */
+function applyElement(tr, pos, node, element) {
+  tr.setNodeMarkup(pos, undefined, { ...node.attrs, element });
+  if (ELEMENTS[element]?.uppercase) uppercaseBlock(tr, pos, node);
+}
+
 function handleEnter(editor) {
   const { state, view } = editor;
   const { $from, empty } = state.selection;
@@ -121,7 +150,7 @@ function handleEnter(editor) {
   const tr = state.tr;
 
   if (detected !== current) {
-    tr.setNodeMarkup(blockStart, undefined, { ...node.attrs, element: detected });
+    applyElement(tr, blockStart, node, detected);
   }
 
   // Splitting mid-line keeps both halves as they are; only a split at the
