@@ -7,7 +7,7 @@ import Avatar from './Avatar.jsx';
 export default function ShareDialog({ docId, doc, onClose }) {
   const { user } = useAuth();
   const [shares, setShares] = useState([]);
-  const [email, setEmail] = useState('');
+  const [person, setPerson] = useState('');
   const [role, setRole] = useState('editor');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -37,18 +37,18 @@ export default function ShareDialog({ docId, doc, onClose }) {
 
   async function onInvite(event) {
     event.preventDefault();
-    const trimmed = email.trim();
+    const trimmed = person.trim();
     if (!trimmed) return;
 
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      await docsApi.share(docId, trimmed, role);
-      setEmail('');
+      const { share } = await docsApi.share(docId, trimmed, role);
+      setPerson('');
       const verb =
         role === 'viewer' ? 'view' : role === 'commenter' ? 'comment on' : 'edit';
-      setNotice(`${trimmed} can now ${verb} this script.`);
+      setNotice(`${personName(share.profile)} can now ${verb} this script.`);
       await refresh();
     } catch (err) {
       setError(err.message);
@@ -100,18 +100,20 @@ export default function ShareDialog({ docId, doc, onClose }) {
         <form onSubmit={onInvite} className="share-form">
           <input
             ref={inputRef}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Add people by email"
-            aria-label="Email address"
+            type="text"
+            value={person}
+            onChange={(e) => setPerson(e.target.value)}
+            placeholder="Add people by username or email"
+            aria-label="Username or email address"
+            autoComplete="off"
+            spellCheck="false"
           />
           <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Permission">
             {ROLES.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
-          <button type="submit" className="btn btn-primary" disabled={busy || !email.trim()}>
+          <button type="submit" className="btn btn-primary" disabled={busy || !person.trim()}>
             {busy ? 'Sharing…' : 'Share'}
           </button>
         </form>
@@ -128,14 +130,14 @@ export default function ShareDialog({ docId, doc, onClose }) {
               <strong>
                 {doc?.owner_id === user.id ? `${personName(me)} (you)` : personName(doc?.owner)}
               </strong>
-              <span>{doc?.owner?.email || me.email}</span>
+              <span>@{doc?.owner?.username || me.username}</span>
             </div>
             <span className="share-role-static">Owner</span>
           </div>
 
           {shares.length === 0 && (
             <p className="muted share-empty">
-              Nobody else yet. Add a collaborator by their ScriptDocs email above.
+              Nobody else yet. Add a collaborator by their username or email above.
             </p>
           )}
 
@@ -144,7 +146,7 @@ export default function ShareDialog({ docId, doc, onClose }) {
               <Avatar profile={share.profile} size={36} />
               <div className="share-who">
                 <strong>{personName(share.profile)}</strong>
-                <span>{share.profile?.email}</span>
+                <span>@{share.profile?.username}</span>
               </div>
               <select
                 value={share.role}
@@ -176,8 +178,8 @@ export default function ShareDialog({ docId, doc, onClose }) {
         </footer>
 
         <p className="share-note">
-          People you add must already have a ScriptDocs account, and they will find
-          the script under “Shared with me”.
+          Add people by username (<code>ada</code>) or email. They must already have a
+          ScriptDocs account, and will find the script under “Shared with me”.
         </p>
       </div>
     </div>

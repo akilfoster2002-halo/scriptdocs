@@ -10,6 +10,12 @@ import {
   verifyPassword,
 } from '../auth.js';
 import { one } from '../db.js';
+import {
+  looksLikeEmail,
+  normalizeUsername,
+  suggestFromEmail,
+  usernameProblem,
+} from '../usernames.js';
 
 const router = express.Router();
 
@@ -58,7 +64,7 @@ setInterval(() => {
 
 router.post('/signup', async (req, res, next) => {
   try {
-    const { email, password, display_name: displayName } = req.body ?? {};
+    const { email, password, username, display_name: displayName } = req.body ?? {};
 
     if (!validEmail(email)) {
       return res.status(400).json({ error: 'Enter a valid email address.' });
@@ -68,18 +74,33 @@ router.post('/signup', async (req, res, next) => {
     }
 
     const clean = email.trim();
-    const existing = await one('select id from users where lower(email) = lower($1)', [clean]);
-    if (existing) {
+
+    // A username is optional over the wire: fall back to the email local
+    // part so older clients and scripted signups still work.
+    const handle = normalizeUsername(username) || suggestFromEmail(clean);
+    const problem = usernameProblem(handle);
+    if (problem) return res.status(400).json({ error: problem });
+
+    const clash = await one(
+      `select
+         exists (select 1 from users where lower(email) = lower($1)) as email_taken,
+         exists (select 1 from users where lower(username) = $2)     as username_taken`,
+      [clean, handle]
+    );
+    if (clash.email_taken) {
       return res.status(409).json({ error: 'An account already uses that email. Try signing in.' });
     }
+    if (clash.username_taken) {
+      return res.status(409).json({ error: 'That username is taken. Pick another.' });
+    }
 
-    const name = (typeof displayName === 'string' && displayName.trim()) || clean.split('@')[0];
+    const name = (typeof displayName === 'string' && displayName.trim()) || handle;
 
     const user = await one(
-      `insert into users (email, password_hash, display_name, color)
-       values ($1, $2, $3, $4)
-       returning id, email, display_name, color`,
-      [clean, await hashPassword(password), name.slice(0, 80), pickColor()]
+      `insert into users (email, username, password_hash, display_name, color)
+       values ($1, $2, $3, $4, $5)
+       returning id, email, username, display_name, color`,
+      [clean, handle, await hashPassword(password), name.slice(0, 80), pickColor()]
     );
 
     setSessionCookie(res, signSession(user.id));
@@ -87,7 +108,16 @@ router.post('/signup', async (req, res, next) => {
   } catch (err) {
     // Unique index race between the check above and the insert.
     if (err.code === '23505') {
-      return res.status(409).json({ error: 'An account already uses that email. Try signing in.' });
+      const taken = /username/.test(err.constraint || '') ? 'username' : 'email';
+      return res.status(409).json({
+        error:
+          taken === 'username'
+            ? 'That username is taken. Pick another.'
+            : 'An account already uses that email. Try signing in.',
+      });
+    }
+    if (err.code === '23514') {
+      return res.status(400).json({ error: 'That username contains characters that are not allowed.' });
     }
     next(err);
   }
@@ -95,12 +125,18 @@ router.post('/signup', async (req, res, next) => {
 
 router.post('/signin', async (req, res, next) => {
   try {
-    const { email, password } = req.body ?? {};
-    if (typeof email !== 'string' || typeof password !== 'string') {
-      return res.status(400).json({ error: 'Enter your email and password.' });
+    const body = req.body ?? {};
+    // `identifier` is either an email or a username. `email` is still
+    // accepted so older clients keep working.
+    const identifier = typeof body.identifier === 'string' ? body.identifier : body.email;
+    const { password } = body;
+
+    if (typeof identifier !== 'string' || !identifier.trim() || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Enter your username or email, and your password.' });
     }
 
-    const key = `${req.ip}:${email.trim().toLowerCase()}`;
+    const typed = identifier.trim();
+    const key = `${req.ip}:${typed.toLowerCase()}`;
     const gate = throttle(key);
     if (!gate.ok) {
       return res.status(429).json({
@@ -108,16 +144,24 @@ router.post('/signin', async (req, res, next) => {
       });
     }
 
+    // Match on whichever the person typed. An address cannot be a valid
+    // username (no "@" is allowed), so the two can never collide.
     const row = await one(
-      'select id, email, display_name, color, password_hash from users where lower(email) = lower($1)',
-      [email.trim()]
+      `select id, email, username, display_name, color, password_hash
+       from users
+       where lower(email) = lower($1) or lower(username) = lower($1)`,
+      [typed]
     );
 
     // Same message either way, so the response does not reveal which
-    // emails have accounts.
+    // emails or usernames have accounts.
     const ok = row && (await verifyPassword(password, row.password_hash));
     if (!ok) {
-      return res.status(401).json({ error: 'That email and password do not match.' });
+      return res.status(401).json({
+        error: looksLikeEmail(typed)
+          ? 'That email and password do not match.'
+          : 'That username and password do not match.',
+      });
     }
 
     clearThrottle(key);
@@ -144,27 +188,47 @@ router.get('/me', async (req, res, next) => {
 
 router.patch('/me', requireAuth, async (req, res, next) => {
   try {
-    const { display_name: displayName, color } = req.body ?? {};
+    const { display_name: displayName, color, username } = req.body ?? {};
     const patch = {};
+
     if (typeof displayName === 'string' && displayName.trim()) {
       patch.display_name = displayName.trim().slice(0, 80);
     }
     if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) {
       patch.color = color;
     }
+    if (username !== undefined) {
+      const handle = normalizeUsername(username);
+      if (handle !== req.user.username) {
+        const problem = usernameProblem(handle);
+        if (problem) return res.status(400).json({ error: problem });
+
+        const taken = await one(
+          'select 1 from users where lower(username) = $1 and id <> $2',
+          [handle, req.user.id]
+        );
+        if (taken) return res.status(409).json({ error: 'That username is taken. Pick another.' });
+        patch.username = handle;
+      }
+    }
+
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'Nothing to update.' });
     }
 
     const user = await one(
       `update users set display_name = coalesce($2, display_name),
-                        color = coalesce($3, color)
+                        color = coalesce($3, color),
+                        username = coalesce($4, username)
        where id = $1
-       returning id, email, display_name, color`,
-      [req.user.id, patch.display_name ?? null, patch.color ?? null]
+       returning id, email, username, display_name, color`,
+      [req.user.id, patch.display_name ?? null, patch.color ?? null, patch.username ?? null]
     );
     res.json({ user: publicUser(user) });
   } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'That username is taken. Pick another.' });
+    }
     next(err);
   }
 });

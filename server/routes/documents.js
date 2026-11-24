@@ -13,6 +13,7 @@ const USER_JSON = (alias) => `
   json_build_object(
     'id', ${alias}.id,
     'email', ${alias}.email,
+    'username', ${alias}.username,
     'display_name', ${alias}.display_name,
     'color', ${alias}.color
   )`;
@@ -137,19 +138,28 @@ router.get('/:docId/shares', requireDocRole('viewer'), async (req, res, next) =>
 
 router.post('/:docId/shares', requireDocRole('owner'), async (req, res, next) => {
   try {
-    const { email, role } = req.body ?? {};
+    const { role } = req.body ?? {};
+    // `person` is a username or an email; `email` stays accepted for
+    // older clients.
+    const raw = typeof req.body?.person === 'string' ? req.body.person : req.body?.email;
+
     if (!ROLES.has(role)) return res.status(400).json({ error: 'Pick a valid permission.' });
-    if (typeof email !== 'string' || !email.trim()) {
-      return res.status(400).json({ error: 'Enter an email address.' });
+    if (typeof raw !== 'string' || !raw.trim()) {
+      return res.status(400).json({ error: 'Enter a username or email address.' });
     }
 
+    const typed = raw.trim().replace(/^@/, '');
     const target = await one(
-      'select id, email, display_name, color from users where lower(email) = lower($1)',
-      [email.trim()]
+      `select id, email, username, display_name, color
+       from users
+       where lower(email) = lower($1) or lower(username) = lower($1)`,
+      [typed]
     );
     if (!target) {
       return res.status(404).json({
-        error: 'No ScriptDocs account uses that email yet. Ask them to sign up first.',
+        error: typed.includes('@')
+          ? 'No ScriptDocs account uses that email yet. Ask them to sign up first.'
+          : `No ScriptDocs account uses the username "${typed}". Check the spelling, or ask them to sign up first.`,
       });
     }
 

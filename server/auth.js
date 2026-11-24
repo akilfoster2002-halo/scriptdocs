@@ -78,13 +78,14 @@ export function clearSessionCookie(res) {
   res.clearCookie(SESSION_COOKIE, { path: '/' });
 }
 
-const PUBLIC_USER_COLUMNS = 'id, email, display_name, color, created_at';
+const PUBLIC_USER_COLUMNS = 'id, email, username, display_name, color, created_at';
 
 export function publicUser(row) {
   if (!row) return null;
   return {
     id: row.id,
     email: row.email,
+    username: row.username,
     display_name: row.display_name,
     color: row.color,
   };

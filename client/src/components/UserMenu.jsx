@@ -42,6 +42,7 @@ export default function UserMenu() {
             <Avatar profile={me} size={40} />
             <div>
               <strong>{personName(me)}</strong>
+              <span>@{me.username}</span>
               <span>{me.email}</span>
             </div>
           </div>

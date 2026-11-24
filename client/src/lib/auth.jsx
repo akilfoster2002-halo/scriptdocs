@@ -33,12 +33,12 @@ export function AuthProvider({ children }) {
       profile: user, // one record serves as both identity and profile
       status,
       error,
-      async signIn(email, password) {
-        const { user: me } = await auth.signIn(email, password);
+      async signIn(identifier, password) {
+        const { user: me } = await auth.signIn(identifier, password);
         setUser(me);
       },
-      async signUp(email, password, displayName) {
-        const { user: me } = await auth.signUp(email, password, displayName);
+      async signUp(fields) {
+        const { user: me } = await auth.signUp(fields);
         setUser(me);
       },
       async signOut() {

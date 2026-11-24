@@ -1,7 +1,9 @@
 /**
  * Remove an account and everything it owns.
  *
- *   npm run user:remove -- someone@example.com [more@example.com ...]
+ *   npm run user:remove -- someone@example.com [ada ...]
+ *
+ * Each argument is a username or an email address.
  *
  * Scripts they own are deleted along with their comments and shares;
  * scripts owned by other people keep working, minus this person's access.
@@ -10,24 +12,27 @@
 import 'dotenv/config';
 import { pool, one, query } from '../server/db.js';
 
-const emails = process.argv.slice(2).filter(Boolean);
+const targets = process.argv.slice(2).filter(Boolean);
 
-if (emails.length === 0) {
-  console.error('Usage: npm run user:remove -- <email> [email ...]');
+if (targets.length === 0) {
+  console.error('Usage: npm run user:remove -- <username or email> [more ...]');
   process.exit(1);
 }
 
 let failed = false;
 
-for (const email of emails) {
+for (const target of targets) {
+  const typed = target.trim().replace(/^@/, '');
   try {
     const user = await one(
-      'select id, email, display_name from users where lower(email) = lower($1)',
-      [email.trim()]
+      `select id, email, username, display_name
+       from users
+       where lower(email) = lower($1) or lower(username) = lower($1)`,
+      [typed]
     );
 
     if (!user) {
-      console.log(`- ${email}: no such account`);
+      console.log(`- ${typed}: no such account`);
       continue;
     }
 
@@ -38,11 +43,11 @@ for (const email of emails) {
     // Foreign keys cascade from users, so one delete is enough.
     await query('delete from users where id = $1', [user.id]);
     console.log(
-      `✓ ${user.email} (${user.display_name}) removed, along with ${owned.n} script(s) they owned`
+      `✓ @${user.username} <${user.email}> removed, along with ${owned.n} script(s) they owned`
     );
   } catch (err) {
     failed = true;
-    console.error(`✗ ${email}: ${err.message}`);
+    console.error(`✗ ${typed}: ${err.message}`);
   }
 }
 

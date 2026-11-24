@@ -15,7 +15,8 @@ else's.
 - **Live presence.** Collaborator avatars in the header and named carets in
   the text, updating as people move.
 - **Sharing with three permission levels.** Invite anyone with a ScriptDocs
-  account by email as a **Viewer**, **Commenter**, or **Editor**. Permissions
+  account by **username or email** as a **Viewer**, **Commenter**, or
+  **Editor**. Permissions
   are enforced on the server, including on the websocket: a viewer's edits are
   refused even if their browser is modified to send them.
 - **Comments.** Select text, leave a comment, resolve or reopen the thread.
@@ -55,6 +56,22 @@ exists to decide **who is allowed to connect**, and to keep the document
 somewhere durable. It holds each open script in memory, broadcasts updates to
 the other participants, and writes a binary snapshot to Postgres a couple of
 seconds after the typing stops.
+
+## Usernames
+
+Every account has a unique username alongside its email. You can sign in with
+either, and share scripts with either.
+
+- 3–30 characters: letters, numbers, dots, dashes and underscores, starting
+  with a letter or number.
+- Stored and compared in lowercase, so `Ada` and `ada` are the same account.
+- `@` is not allowed, which is what keeps the two namespaces apart: a single
+  sign-in field can tell an email from a username without ambiguity.
+- A short list of reserved words (`admin`, `owner`, `viewer`, …) is refused.
+
+Accounts that predate usernames are backfilled from their email local part by
+`server/migrations/002_usernames.sql`. Where two addresses share a local part,
+the older account keeps the bare handle and later ones get a numeric suffix.
 
 ## Security notes
 
@@ -110,8 +127,8 @@ The schema is applied automatically at startup — each file in
 
 Sign up twice with two different emails (a normal window and a private
 window). In the first account create a script, press **Share**, and add the
-second account's email as an **Editor**. Open the same script in both windows
-and type — you should see both carets and both sets of changes.
+second account's username as an **Editor**. Open the same script in both
+windows and type — you should see both carets and both sets of changes.
 
 ## Deploying to Render
 
@@ -138,6 +155,7 @@ There is no admin UI. To remove an account and everything it owns:
 
 ```bash
 npm run user:remove -- someone@example.com
+npm run user:remove -- ada              # a username works too
 ```
 
 It needs `DATABASE_URL` in `.env`. Scripts owned by that person are
@@ -146,11 +164,12 @@ person's access.
 
 ### Test accounts to clear out
 
-This deployment was verified with three throwaway accounts. **Remove them
-before sharing the app**, since their passwords are not secret:
+This deployment was verified with four throwaway accounts (`tester`, `ada`,
+`grace`, `mallory`). **Remove them before sharing the app**, since their
+passwords are not secret:
 
 ```bash
-npm run user:remove -- ada@scriptdocs.test grace@scriptdocs.test mallory@scriptdocs.test
+npm run user:remove -- tester ada grace mallory
 ```
 
 Getting `DATABASE_URL` for this: open the database in the Render

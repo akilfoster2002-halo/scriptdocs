@@ -56,12 +56,13 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const auth = {
   me: () => request('/api/auth/me'),
-  signIn: (email, password) =>
-    request('/api/auth/signin', { method: 'POST', body: { email, password } }),
-  signUp: (email, password, displayName) =>
+  // `identifier` is a username or an email; the server accepts either.
+  signIn: (identifier, password) =>
+    request('/api/auth/signin', { method: 'POST', body: { identifier, password } }),
+  signUp: ({ email, username, password, displayName }) =>
     request('/api/auth/signup', {
       method: 'POST',
-      body: { email, password, display_name: displayName },
+      body: { email, username, password, display_name: displayName },
     }),
   signOut: () => request('/api/auth/signout', { method: 'POST' }),
   updateMe: (patch) => request('/api/auth/me', { method: 'PATCH', body: patch }),
@@ -79,8 +80,9 @@ export const docs = {
   remove: (id) => request(`/api/documents/${id}`, { method: 'DELETE' }),
 
   listShares: (id) => request(`/api/documents/${id}/shares`).then((r) => r.shares),
-  share: (id, email, role) =>
-    request(`/api/documents/${id}/shares`, { method: 'POST', body: { email, role } }),
+  // `person` is a username or an email.
+  share: (id, person, role) =>
+    request(`/api/documents/${id}/shares`, { method: 'POST', body: { person, role } }),
   updateShare: (id, userId, role) =>
     request(`/api/documents/${id}/shares/${userId}`, { method: 'PATCH', body: { role } }),
   removeShare: (id, userId) =>
