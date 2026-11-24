@@ -466,7 +466,7 @@ button { font-family: inherit; }
 }
 
 .page-body .sp {
-  margin: 0;
+  margin: 0 0 0 0;
   white-space: pre-wrap;
   /* Indents below are measured from the left edge of the text column. */
 }
@@ -481,36 +481,38 @@ button { font-family: inherit; }
 /* Scene headings get extra air, as in a printed script. */
 .page-body .sp + .sp-scene { margin-top: 24pt; }
 
-.sp-scene {
+/* These carry .page-body so they outrank the `margin: 0` reset above —
+   a shorthand from a more specific selector would otherwise cancel every
+   indent below. */
+
+.page-body .sp-scene {
   /* The text is uppercased for real on input; this only catches paste. */
   text-transform: uppercase;
   font-weight: 700;
 }
 
-.sp-action { }
-
-.sp-character {
+.page-body .sp-character {
   margin-left: 2.2in;
   max-width: 3.3in;
   text-transform: uppercase;
 }
 
-.sp-paren {
+.page-body .sp-paren {
   margin-left: 1.6in;
   max-width: 2in;
 }
 
-.sp-dialogue {
+.page-body .sp-dialogue {
   margin-left: 1in;
   max-width: 3.5in;
 }
 
-.sp-transition {
+.page-body .sp-transition {
   text-align: right;
   text-transform: uppercase;
 }
 
-.sp-shot {
+.page-body .sp-shot {
   text-transform: uppercase;
 }
 
@@ -689,9 +691,9 @@ button { font-family: inherit; }
   .page-scroll { padding: 0 10px 60px; }
   .page { padding: 0.4in 0.3in 0.4in 0.45in; }
   .page-body { font-size: 11pt; }
-  .sp-character { margin-left: 1.6in; }
-  .sp-paren { margin-left: 1.1in; }
-  .sp-dialogue { margin-left: 0.7in; }
+  .page-body .sp-character { margin-left: 1.6in; }
+  .page-body .sp-paren { margin-left: 1.1in; }
+  .page-body .sp-dialogue { margin-left: 0.7in; }
   .tb-tip { display: none; }
   .doc-grid { grid-template-columns: 1fr; }
   .modal { padding: 18px 16px 14px; }
