@@ -6,6 +6,7 @@ import {
   cycleElement,
   detectElement,
   elementOf,
+  knownCharacters,
 } from './screenplay.js';
 
 /**
@@ -146,7 +147,7 @@ function handleEnter(editor) {
     return editor.commands.setScreenplayElement(DEFAULT_ELEMENT);
   }
 
-  const detected = detectElement(text, current) || current;
+  const detected = detectElement(text, current, knownCharacters(state.doc)) || current;
   const tr = state.tr;
 
   if (detected !== current) {

@@ -110,8 +110,13 @@ export function looksLikeCharacter(text) {
 /**
  * What does this line look like, given what the writer already marked it as?
  * Returns null when there is no reason to change anything.
+ *
+ * `knownCharacters` are the cues already used in this script. A first
+ * appearance has to follow the caps convention (or be set with Tab), but
+ * once a name is established, writing it on its own line in any case is
+ * unambiguous enough to promote.
  */
-export function detectElement(text, current) {
+export function detectElement(text, current, knownCharacters = []) {
   const trimmed = text.trim();
   if (!trimmed) return null;
 
@@ -125,9 +130,29 @@ export function detectElement(text, current) {
 
   // Only promote plain action lines, so an explicit choice is never
   // second-guessed.
-  if (current === 'action' && looksLikeCharacter(trimmed)) return 'character';
+  if (current === 'action') {
+    if (looksLikeCharacter(trimmed)) return 'character';
+
+    // An exact match on an established name, whatever the casing. The
+    // match must be the whole line, so "mary walks in" stays Action.
+    const bare = trimmed.replace(/\([^)]*\)\s*$/, '').trim().toUpperCase();
+    if (bare && knownCharacters.some((name) => name.toUpperCase() === bare)) {
+      return 'character';
+    }
+  }
 
   return null;
+}
+
+/** Character cues already used in a document. */
+export function knownCharacters(doc) {
+  const names = new Set();
+  doc?.descendants((node) => {
+    if (!node.isTextblock || elementOf(node) !== 'character') return;
+    const name = node.textContent.replace(/\([^)]*\)\s*$/, '').trim();
+    if (name) names.add(name);
+  });
+  return [...names];
 }
 
 // ------------------------------------------------------------- suggestions

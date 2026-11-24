@@ -52,7 +52,9 @@ back, and **⌘1–7** (Ctrl on Windows) picks one directly.
 - A line ending `TO:`, or `FADE IN:` / `FADE OUT.`, becomes a Transition.
 - A short all-caps line on its own becomes a Character cue — but
   `HE SLAMS THE DOOR SHUT.` stays Action, because it is a sentence and too
-  long to be a name.
+  long to be a name. Once a name is established, writing it on its own line
+  in any case is enough: type `mary` and it becomes `MARY`. The match has to
+  be the whole line, so `mary walks in` stays Action.
 - Typing `(` on a fresh line under a cue opens a Parenthetical, brackets
   already closed.
 - Scene Headings, Character cues, Transitions and Shots uppercase themselves
