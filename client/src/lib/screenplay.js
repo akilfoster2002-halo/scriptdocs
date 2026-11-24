@@ -89,7 +89,9 @@ export function cycleElement(current, direction = 1) {
 // ---------------------------------------------------------------- detection
 
 const SCENE_RE = /^\s*(INT|EXT|EST|INT\.?\/EXT|I\/E)\b[.\s]/i;
-const TRANSITION_RE = /^[A-Z0-9 '’\-]{2,}TO:$/;
+// Case-insensitive, like the scene rule: the writer types "cut to:" and
+// the editor supplies the casing.
+const TRANSITION_RE = /^[A-Z0-9 '’\-]{2,}TO:$/i;
 const FADE_RE = /^(FADE IN[:.]?|FADE OUT[:.]?|FADE TO BLACK\.?|THE END\.?)$/i;
 
 /** Character cues are short, all caps, and not sentences. */
@@ -120,12 +122,17 @@ export function detectElement(text, current, knownCharacters = []) {
   const trimmed = text.trim();
   if (!trimmed) return null;
 
+  // INT./EXT. is unambiguous anywhere.
   if (SCENE_RE.test(trimmed)) return 'scene';
-  if (FADE_RE.test(trimmed)) return 'transition';
-  if (TRANSITION_RE.test(trimmed)) return 'transition';
 
   if (trimmed.startsWith('(') && (current === 'dialogue' || current === 'character')) {
     return 'paren';
+  }
+
+  // Transitions are only promoted out of Action, so a line of dialogue
+  // ending "...talk to:" is never reformatted out from under the writer.
+  if (current === 'action' && (FADE_RE.test(trimmed) || TRANSITION_RE.test(trimmed))) {
+    return 'transition';
   }
 
   // Only promote plain action lines, so an explicit choice is never
