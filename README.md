@@ -164,12 +164,12 @@ person's access.
 
 ### Test accounts to clear out
 
-This deployment was verified with four throwaway accounts (`tester`, `ada`,
-`grace`, `mallory`). **Remove them before sharing the app**, since their
-passwords are not secret:
+This deployment was verified with five throwaway accounts (`tester`, `ada`,
+`grace`, `mallory`, `newbie`). **Remove them before sharing the app**, since
+their passwords are not secret:
 
 ```bash
-npm run user:remove -- tester ada grace mallory
+npm run user:remove -- tester ada grace mallory newbie
 ```
 
 Getting `DATABASE_URL` for this: open the database in the Render
