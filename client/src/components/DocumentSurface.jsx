@@ -32,6 +32,7 @@ export default function DocumentSurface({
   commentsOpen,
   commentsBump,
   onCloseComments,
+  onEditor,
 }) {
   const editor = useEditor(
     {
@@ -76,6 +77,12 @@ export default function DocumentSurface({
   useEffect(() => {
     editor?.setEditable(canEdit);
   }, [editor, canEdit]);
+
+  // The header needs the editor for Download; it lives out here.
+  useEffect(() => {
+    onEditor?.(editor ?? null);
+    return () => onEditor?.(null);
+  }, [editor, onEditor]);
 
   useEffect(() => {
     if (editor && identity) editor.commands.updateUser?.(identity);

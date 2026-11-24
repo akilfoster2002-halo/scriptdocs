@@ -22,9 +22,16 @@ export default defineConfig({
         // module path, since @tiptap/pm exposes only subpath exports.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
+          // Name only the two big eager libraries. Everything else is left
+          // to Rollup, so anything reachable solely through a dynamic
+          // import — the PDF engine and its dependencies — stays in an
+          // async chunk instead of being dragged into the first load.
           if (id.includes('@tiptap') || id.includes('prosemirror')) return 'editor';
           if (/[\\/](yjs|y-websocket|y-protocols|lib0)[\\/]/.test(id)) return 'collab';
-          return 'vendor';
+          if (/[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) {
+            return 'react';
+          }
+          return undefined;
         },
       },
     },

@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import Login from './pages/Login.jsx';
 import DocList from './pages/DocList.jsx';
-import Editor from './pages/Editor.jsx';
+// The editor pulls in ProseMirror and the collaboration stack. Signing in
+// and browsing your scripts should not pay for that.
+const Editor = lazy(() => import('./pages/Editor.jsx'));
 import './styles.css';
 
 function Splash({ message }) {
@@ -49,7 +51,9 @@ function App() {
             path="/d/:docId"
             element={
               <Gate>
-                <Editor />
+                <Suspense fallback={<Splash message="Opening the script…" />}>
+                  <Editor />
+                </Suspense>
               </Gate>
             }
           />

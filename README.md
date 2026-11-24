@@ -20,6 +20,10 @@ type comes out in industry standard format.
   are enforced on the server, including on the websocket: a viewer's edits are
   refused even if their browser is modified to send them.
 - **Comments.** Select text, leave a comment, resolve or reopen the thread.
+- **Download as PDF, Final Draft or Fountain.** A properly paginated PDF
+  with a title page and page numbers, `.fdx` for Final Draft, or `.fountain`
+  plain text that Highland, Slugline and WriterDuet all read.
+
 - **Screenplay format, automatically.** Seven elements — Scene Heading,
   Action, Character, Parenthetical, Dialogue, Transition, Shot — each with
   its correct indent, width and casing, on a US Letter page set in 12pt
@@ -72,6 +76,34 @@ merging it into the line above — the usual way out when an element is wrong.
 Headings, lists, quotes and code blocks are deliberately absent. A screenplay
 has seven elements and nothing else.
 
+## Exporting
+
+**Download** in the editor header offers three formats.
+
+**PDF** is laid out here rather than printed by the browser, so the
+pagination follows screenplay rules rather than the rules for a web page:
+
+- 55 lines of body text per US Letter page, 12pt Courier, standard margins.
+- A scene heading is never left dangling at the foot of a page with nothing
+  under it, and a character cue always keeps at least one line of its speech.
+- A speech that crosses a page break carries `(MORE)` at the bottom and
+  `CHARACTER (CONT'D)` at the top of the next page.
+- A title page from the script's title and its owner's name; page numbers
+  from page two, as is conventional.
+
+**Final Draft (`.fdx`)** is the format productions pass around. Each element
+maps to the Type string Final Draft matches literally, so a script opens with
+its formatting intact rather than as a wall of action.
+
+**Fountain (`.fountain`)** is plain text. Fountain infers element types from
+how a line looks, which loses anything that does not follow the convention —
+a scene heading not starting `INT.`, a cue that is not uppercase. Where that
+would change the script, the forcing characters (`.`, `@`, `>`) are written
+so the file round-trips as written rather than as guessed.
+
+The PDF engine is fetched the first time you export one, so nobody who never
+exports a PDF downloads it.
+
 ## How it fits together
 
 ```
@@ -80,6 +112,7 @@ client/            React + Vite single-page app
   src/components/  Toolbar, ShareDialog, CommentsPanel, Avatar, UserMenu
   src/lib/         API client, auth context, Yjs + events hooks
   src/lib/screenplay*.js   element model, editor node, autocomplete
+  src/lib/export/          PDF, Final Draft and Fountain writers
 
 server/
   index.js         Express app, static hosting, websocket routing
@@ -235,11 +268,15 @@ internal connections, which is why this needs a deliberate step.)
   the quoted selection, not a live position, so it will not follow the text as
   the document is rewritten.
 
-- **Pages are an estimate, and there is no export.** The page count is
-  computed from line counts rather than real pagination, so there are no page
-  breaks on screen, no `(MORE)` / `(CONT'D)` carries, no title page, and no
-  PDF or Final Draft output yet. Fountain export would be the natural next
-  step, since it is plain text that Final Draft and Highland both import.
+- **The page count on screen is an estimate.** It is computed from line
+  counts, and the editor shows no page breaks. The exported PDF paginates
+  properly, so trust that number over the one in the footer.
+
+- **Export is one-way.** There is no importer, so a `.fdx` or `.fountain`
+  file cannot be brought back in.
+
+- **Scene numbers and revision marks are not implemented**, nor dual
+  dialogue.
 
 - **Film and TV format only.** Stage plays and radio drama use different
   indents and are not covered.

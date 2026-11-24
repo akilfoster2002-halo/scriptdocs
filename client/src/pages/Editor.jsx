@@ -8,6 +8,7 @@ import { personName } from '../lib/format.js';
 import Avatar from '../components/Avatar.jsx';
 import UserMenu from '../components/UserMenu.jsx';
 import ShareDialog from '../components/ShareDialog.jsx';
+import ExportMenu from '../components/ExportMenu.jsx';
 import DocumentSurface from '../components/DocumentSurface.jsx';
 
 export default function Editor() {
@@ -22,6 +23,7 @@ export default function Editor() {
   const [savingTitle, setSavingTitle] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [editor, setEditor] = useState(null);
   const titleTimer = useRef(null);
 
   const canEdit = role === 'owner' || role === 'editor';
@@ -178,6 +180,12 @@ export default function Editor() {
             {peers.length > 4 && <span className="presence-more">+{peers.length - 4}</span>}
           </div>
 
+          <ExportMenu
+            editor={editor}
+            title={title}
+            author={doc?.owner ? personName(doc.owner) : ''}
+          />
+
           {canComment && (
             <button
               type="button"
@@ -212,6 +220,7 @@ export default function Editor() {
           commentsOpen={commentsOpen}
           commentsBump={commentsBump}
           onCloseComments={() => setCommentsOpen(false)}
+          onEditor={setEditor}
         />
       ) : (
         <>

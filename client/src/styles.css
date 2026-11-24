@@ -304,6 +304,21 @@ button { font-family: inherit; }
   border: 1px solid var(--line-soft); border-radius: 10px;
   box-shadow: var(--shadow-3); padding: 8px; z-index: 60;
 }
+.menu-wide { min-width: 268px; }
+
+.export-menu { position: relative; flex: none; }
+
+.export-option {
+  appearance: none; border: 0; background: none; width: 100%; text-align: left;
+  padding: 9px 10px; border-radius: 6px; cursor: pointer;
+  display: grid; gap: 2px;
+}
+.export-option:hover:not(:disabled) { background: var(--canvas); }
+.export-option:disabled { opacity: 0.6; cursor: default; }
+.export-option-label { font-size: 14px; font-weight: 500; color: var(--ink); }
+.export-option-hint { font-size: 12px; color: var(--muted); }
+.export-error { margin: 6px 4px 2px; }
+
 .menu-header { display: flex; align-items: center; gap: 12px; padding: 10px; }
 .menu-header div { display: grid; gap: 2px; min-width: 0; }
 .menu-header strong { font-size: 14px; font-weight: 600; }
