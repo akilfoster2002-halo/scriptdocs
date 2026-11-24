@@ -62,12 +62,10 @@ function suggestionsFor(state) {
   // Only suggest while typing at the end of the line.
   if ($from.parentOffset !== text.length) return null;
 
-  const { characters, scenes } = harvest(state.doc);
-
   if (element === 'character') {
     const query = beforeCaret.trim();
     if (!query) return null;
-    const items = characters
+    const items = harvest(state.doc).characters
       .filter((name) => startsWith(name, query) && name.toUpperCase() !== query.toUpperCase())
       .slice(0, MAX_ITEMS);
     return items.length ? { items, replace: 'line' } : null;
@@ -99,7 +97,7 @@ function suggestionsFor(state) {
     }
 
     // Offer whole headings already in the script, then bare prefixes.
-    const used = scenes.filter(
+    const used = harvest(state.doc).scenes.filter(
       (s) => startsWith(s, query) && s.toUpperCase() !== query.toUpperCase()
     );
     const prefixes = SCENE_PREFIXES.filter(

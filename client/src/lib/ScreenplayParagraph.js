@@ -1,5 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import {
   DEFAULT_ELEMENT,
   ELEMENTS,
@@ -158,7 +158,7 @@ function autoCasePlugin() {
             element: 'paren',
           });
           tr.insertText('()', from, to);
-          tr.setSelection(view.state.selection.constructor.near(tr.doc.resolve(from + 1)));
+          tr.setSelection(TextSelection.near(tr.doc.resolve(from + 1)));
           view.dispatch(tr);
           return true;
         }

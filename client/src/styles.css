@@ -513,7 +513,8 @@ button { font-family: inherit; }
   text-transform: uppercase;
 }
 
-.page-body .sp.is-empty:first-child::before {
+.page-body .sp.is-empty:first-child::before,
+.page-body .sp.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: #9aa0a6;
   float: left;
