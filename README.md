@@ -1,9 +1,9 @@
 # ScriptDocs
 
-Real-time collaborative script writing, in the spirit of Google Docs. Several
-people open the same script and type at once; everyone sees every keystroke,
-each with their own labelled caret, and nobody's work overwrites anybody
-else's.
+Real-time collaborative **screenplay** writing. Several people open the same
+script and type at once; everyone sees every keystroke, each with their own
+labelled caret, and nobody's work overwrites anybody else's — and what they
+type comes out in industry standard format.
 
 <!-- Replace with your deployed URL once the service is live. -->
 
@@ -20,11 +20,55 @@ else's.
   are enforced on the server, including on the websocket: a viewer's edits are
   refused even if their browser is modified to send them.
 - **Comments.** Select text, leave a comment, resolve or reopen the thread.
-- **A familiar editor.** Headings, bold/italic/underline/strikethrough,
-  text colour and highlight, alignment, lists, quotes, code blocks, links,
-  and a live word count — on a page that looks like a page.
+- **Screenplay format, automatically.** Seven elements — Scene Heading,
+  Action, Character, Parenthetical, Dialogue, Transition, Shot — each with
+  its correct indent, width and casing, on a US Letter page set in 12pt
+  Courier Prime. Measured in pages and scenes, not words.
 - **Autosave.** Edits are debounced to Postgres, flushed when the last
   collaborator disconnects, and again on shutdown.
+
+## Writing in it
+
+The editor behaves the way script software is expected to, so you can type a
+scene without reaching for the mouse.
+
+**Enter moves you to whatever comes next:**
+
+| From | Enter gives you |
+|---|---|
+| Scene Heading | Action |
+| Action | Action |
+| Character | Dialogue |
+| Parenthetical | Dialogue |
+| Dialogue | Action |
+| Transition | Scene Heading |
+
+**Tab** cycles the current line through the element types, **Shift+Tab** goes
+back, and **⌘1–7** (Ctrl on Windows) picks one directly.
+
+**It formats as you type:**
+
+- A line starting `INT.`, `EXT.`, `EST.` or `I/E` becomes a Scene Heading.
+- A line ending `TO:`, or `FADE IN:` / `FADE OUT.`, becomes a Transition.
+- A short all-caps line on its own becomes a Character cue — but
+  `HE SLAMS THE DOOR SHUT.` stays Action, because it is a sentence and too
+  long to be a name.
+- Typing `(` on a fresh line under a cue opens a Parenthetical, brackets
+  already closed.
+- Scene Headings, Character cues, Transitions and Shots uppercase themselves
+  as you type, so the text is correct when it leaves the editor rather than
+  only looking correct on screen.
+
+**It completes what you have already written.** Character cues suggest names
+already in the script, Scene Headings suggest locations you have established
+and then times of day after the dash, and Transitions suggest the standard
+set. Arrow keys to choose, Enter or Tab to accept, Escape to dismiss.
+
+**Backspace at the start of a styled line** returns it to Action instead of
+merging it into the line above — the usual way out when an element is wrong.
+
+Headings, lists, quotes and code blocks are deliberately absent. A screenplay
+has seven elements and nothing else.
 
 ## How it fits together
 
@@ -33,6 +77,7 @@ client/            React + Vite single-page app
   src/pages/       Login, DocList (your scripts), Editor
   src/components/  Toolbar, ShareDialog, CommentsPanel, Avatar, UserMenu
   src/lib/         API client, auth context, Yjs + events hooks
+  src/lib/screenplay*.js   element model, editor node, autocomplete
 
 server/
   index.js         Express app, static hosting, websocket routing
@@ -187,6 +232,15 @@ internal connections, which is why this needs a deliberate step.)
 - **Comments are not anchored to the text.** A comment stores a snapshot of
   the quoted selection, not a live position, so it will not follow the text as
   the document is rewritten.
+
+- **Pages are an estimate, and there is no export.** The page count is
+  computed from line counts rather than real pagination, so there are no page
+  breaks on screen, no `(MORE)` / `(CONT'D)` carries, no title page, and no
+  PDF or Final Draft output yet. Fountain export would be the natural next
+  step, since it is plain text that Final Draft and Highland both import.
+
+- **Film and TV format only.** Stage plays and radio drama use different
+  indents and are not covered.
 - **One server process.** Rooms live in memory, so running more than one
   instance would split collaborators across them. Scaling out would need the
   rooms coordinated through something shared, such as Redis.

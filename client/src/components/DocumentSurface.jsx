@@ -3,12 +3,12 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
-import TextAlign from '@tiptap/extension-text-align';
-import Highlight from '@tiptap/extension-highlight';
-import { CharacterCount, Placeholder } from '@tiptap/extensions';
-import { Color, FontSize, TextStyle } from '@tiptap/extension-text-style';
+import { Placeholder } from '@tiptap/extensions';
 
 import { relativeTime } from '../lib/format.js';
+import { ScreenplayParagraph } from '../lib/ScreenplayParagraph.js';
+import { ScreenplayAutocomplete } from '../lib/screenplayAutocomplete.js';
+import { screenplayStats } from '../lib/screenplay.js';
 import Toolbar from './Toolbar.jsx';
 import CommentsPanel from './CommentsPanel.jsx';
 
@@ -38,23 +38,36 @@ export default function DocumentSurface({
       extensions: [
         // undoRedo must be off: Collaboration brings its own undo stack,
         // scoped so you never undo a collaborator's typing.
+        //
+        // Headings, lists, quotes and code blocks are off too: screenplays
+        // have their own seven elements and nothing else, so offering them
+        // would only produce pages that no production would accept.
         StarterKit.configure({
           undoRedo: false,
-          link: { openOnClick: false, autolink: true },
+          paragraph: false,
+          heading: false,
+          bulletList: false,
+          orderedList: false,
+          listItem: false,
+          listKeymap: false,
+          blockquote: false,
+          codeBlock: false,
+          code: false,
+          horizontalRule: false,
+          link: false,
+          strike: false,
         }),
-        TextStyle,
-        FontSize,
-        Color,
-        Highlight.configure({ multicolor: true }),
-        TextAlign.configure({ types: ['heading', 'paragraph'] }),
-        Placeholder.configure({ placeholder: 'Start writing your script…' }),
-        CharacterCount,
+        ScreenplayParagraph,
+        ScreenplayAutocomplete,
+        Placeholder.configure({
+          placeholder: 'FADE IN:  —  start typing, or press Tab to pick an element',
+        }),
         Collaboration.configure({ document: ydoc }),
         CollaborationCaret.configure({ provider, user: identity }),
       ],
       editable: canEdit,
       editorProps: {
-        attributes: { class: 'page-body', spellcheck: 'true' },
+        attributes: { class: 'page-body screenplay', spellcheck: 'true' },
       },
     },
     [ydoc, provider]
@@ -68,7 +81,7 @@ export default function DocumentSurface({
     if (editor && identity) editor.commands.updateUser?.(identity);
   }, [editor, identity]);
 
-  const words = editor?.storage.characterCount?.words?.() ?? 0;
+  const stats = editor ? screenplayStats(editor.state.doc) : { pages: 0, scenes: 0 };
 
   return (
     <>
@@ -81,7 +94,8 @@ export default function DocumentSurface({
           </div>
           <div className="page-footer">
             <span>
-              {words} {words === 1 ? 'word' : 'words'}
+              {stats.pages} {stats.pages === 1 ? 'page' : 'pages'} ·{' '}
+              {stats.scenes} {stats.scenes === 1 ? 'scene' : 'scenes'}
             </span>
             {doc?.updated_at && <span>Edited {relativeTime(doc.updated_at)}</span>}
           </div>
