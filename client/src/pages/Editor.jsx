@@ -241,9 +241,9 @@ export default function Editor() {
         <div className="editor-content">
           {viewingVersion && (
             <VersionPreview
-                  docId={docId}
+              docId={docId}
               version={viewingVersion}
-                  canEdit={canEdit}
+              canEdit={canEdit}
               onRestore={onRestore}
               onBack={() => setViewingVersion(null)}
             />

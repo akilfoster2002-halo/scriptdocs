@@ -174,13 +174,16 @@ class Room {
 
     this.savingVersion = (async () => {
       try {
-        return await saveVersion(this.id, this.doc, {
+        const saved = await saveVersion(this.id, this.doc, {
           createdBy: authors[authors.length - 1] || null,
           authors,
         });
+        // A null means the text was unchanged and nothing was written, so
+        // these people still have a version owing to them.
+        if (!saved) for (const id of authors) this.contributors.add(id);
+        return saved;
       } catch (err) {
         console.error(`[collab] version ${this.id}:`, err.message);
-        // Put the authors back so the next attempt still credits them.
         for (const id of authors) this.contributors.add(id);
         return null;
       } finally {
