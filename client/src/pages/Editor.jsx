@@ -237,63 +237,67 @@ export default function Editor() {
         </div>
       </header>
 
-      {viewingVersion && (
-        <VersionPreview
-          docId={docId}
-          version={viewingVersion}
-          canEdit={canEdit}
-          onRestore={onRestore}
-          onBack={() => setViewingVersion(null)}
-        />
-      )}
+      <div className="editor-main">
+        <div className="editor-content">
+          {viewingVersion && (
+            <VersionPreview
+                  docId={docId}
+              version={viewingVersion}
+                  canEdit={canEdit}
+              onRestore={onRestore}
+              onBack={() => setViewingVersion(null)}
+            />
+          )}
 
-      {/* The editor stays mounted while a version is on screen: it owns the
-          live connection, and tearing it down to look at history would drop
-          everyone's presence and reopen the socket on the way back. */}
-      <div className={viewingVersion ? 'editor-stage editor-stage-hidden' : 'editor-stage'}>
-        {ydoc && provider ? (
-          <DocumentSurface
-            key={docId}
-            docId={docId}
-            doc={doc}
-            ydoc={ydoc}
-            provider={provider}
-            identity={identity}
-            canEdit={canEdit}
-            canComment={canComment}
-            isOwner={role === 'owner'}
-            commentsOpen={commentsOpen}
-            commentsBump={commentsBump}
-            onCloseComments={() => setCommentsOpen(false)}
-            onEditor={setEditor}
-          />
-        ) : (
-          <>
-            <div className="toolbar" />
-            <div className="editor-body">
-              <div className="page-scroll">
-                <div className="page">
-                  <p className="muted">Opening the script…</p>
+          {/* The editor stays mounted while a version is on screen: it owns
+              the live connection, and tearing it down to look at history would
+              drop everyone's presence and reopen the socket on the way back. */}
+          <div className={viewingVersion ? 'editor-stage editor-stage-hidden' : 'editor-stage'}>
+            {ydoc && provider ? (
+              <DocumentSurface
+                key={docId}
+                docId={docId}
+                doc={doc}
+                ydoc={ydoc}
+                provider={provider}
+                identity={identity}
+                canEdit={canEdit}
+                canComment={canComment}
+                isOwner={role === 'owner'}
+                commentsOpen={commentsOpen}
+                commentsBump={commentsBump}
+                onCloseComments={() => setCommentsOpen(false)}
+                onEditor={setEditor}
+              />
+            ) : (
+              <>
+                <div className="toolbar" />
+                <div className="editor-body">
+                  <div className="page-scroll">
+                    <div className="page">
+                      <p className="muted">Opening the script…</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </>
+              </>
+            )}
+          </div>
+        </div>
+
+        {historyOpen && (
+          <VersionHistory
+            docId={docId}
+            canEdit={canEdit}
+            refreshKey={historyBump}
+            selectedId={viewingVersion?.id ?? null}
+            onSelect={setViewingVersion}
+            onClose={() => {
+              setHistoryOpen(false);
+              setViewingVersion(null);
+            }}
+          />
         )}
       </div>
-
-      {historyOpen && (
-        <VersionHistory
-          docId={docId}
-          canEdit={canEdit}
-          refreshKey={historyBump}
-          selectedId={viewingVersion?.id ?? null}
-          onSelect={setViewingVersion}
-          onClose={() => {
-            setHistoryOpen(false);
-            setViewingVersion(null);
-          }}
-        />
-      )}
 
       {shareOpen && (
         <ShareDialog docId={docId} doc={doc} onClose={() => setShareOpen(false)} />
