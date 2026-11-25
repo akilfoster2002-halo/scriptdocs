@@ -20,6 +20,11 @@ type comes out in industry standard format.
   are enforced on the server, including on the websocket: a viewer's edits are
   refused even if their browser is modified to send them.
 - **Comments.** Select text, leave a comment, resolve or reopen the thread.
+
+- **Edit history.** A version is saved automatically every few minutes of
+  writing and again when everyone leaves, showing who contributed. Read any
+  version side by side with the live one, name the ones worth keeping, and
+  restore.
 - **Download as PDF, Final Draft or Fountain.** A properly paginated PDF
   with a title page and page numbers, `.fdx` for Final Draft, or `.fountain`
   plain text that Highland, Slugline and WriterDuet all read.
@@ -76,6 +81,29 @@ merging it into the line above — the usual way out when an element is wrong.
 Headings, lists, quotes and code blocks are deliberately absent. A screenplay
 has seven elements and nothing else.
 
+## Edit history
+
+**History** in the editor header lists every saved version, newest first,
+with the collaborators who wrote it.
+
+- Versions are saved on a timer while anyone is editing, and once more when
+  the last person disconnects — the end of a session being the most useful
+  place for a mark. Nothing is saved when the text has not changed: the check
+  is a hash of the rendered script, not of the CRDT bytes, which encode
+  differently for the same content depending on how it was arrived at.
+- **Name current version** pins one with a label. Named versions are kept
+  forever; automatic ones are pruned to the most recent few dozen.
+- Selecting a version shows it read-only in the page. The editor stays
+  mounted underneath, so looking at history does not drop your presence or
+  reconnect the socket.
+- **Restore** writes that version's content back as an ordinary edit, which
+  matters for a CRDT: collaborators see it arrive like any other change, and
+  it can be undone. History is never rewritten.
+
+Each version stores a complete CRDT state rather than a diff. Diffs would be
+smaller, but opening version N would mean replaying every version before it,
+and a history you cannot open quickly is not much of a history.
+
 ## Exporting
 
 **Download** in the editor header offers three formats.
@@ -120,6 +148,7 @@ server/
   events.js        JSON notification channel (titles, shares, comments)
   auth.js          scrypt password hashing, signed session cookies
   access.js        The single source of truth for permissions
+  versions.js      Snapshotting, content hashing and pruning
   routes/          /api/auth and /api/documents
   migrations/      Plain SQL, applied automatically on boot
 ```
@@ -274,6 +303,10 @@ internal connections, which is why this needs a deliberate step.)
 
 - **Export is one-way.** There is no importer, so a `.fdx` or `.fountain`
   file cannot be brought back in.
+
+- **History shows versions, not differences.** You can read any version and
+  restore it, but nothing highlights what changed between two of them, and
+  authorship is recorded per version rather than per sentence.
 
 - **Scene numbers and revision marks are not implemented**, nor dual
   dialogue.

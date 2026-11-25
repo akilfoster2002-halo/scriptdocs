@@ -22,6 +22,7 @@ import { docRole, atLeast } from './access.js';
 import { userFromCookies } from './auth.js';
 import { parseCookies } from './cookies.js';
 import { one, query } from './db.js';
+import { saveVersion } from './versions.js';
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -46,6 +47,10 @@ class Room {
 
     this.dirty = false;
     this.lastEditedBy = null;
+    /** Everyone who has typed since the last version was written. */
+    this.contributors = new Set();
+    this.lastVersionAt = Date.now();
+    this.savingVersion = null;
     this.persistTimer = null;
     this.maxWaitTimer = null;
     this.idleTimer = null;
@@ -60,7 +65,10 @@ class Room {
         if (conn !== origin) send(conn, message);
       }
       if (origin !== 'persistence') {
-        if (origin?.userId) this.lastEditedBy = origin.userId;
+        if (origin?.userId) {
+          this.lastEditedBy = origin.userId;
+          this.contributors.add(origin.userId);
+        }
         this.markDirty();
       }
     });
@@ -137,6 +145,7 @@ class Room {
            where id = $1`,
           [this.id, editor]
         );
+        await this.maybeSaveVersion();
       } catch (err) {
         console.error(`[collab] persist ${this.id}:`, err.message);
         this.dirty = true; // retry on the next change or at teardown
@@ -148,11 +157,48 @@ class Room {
     return this.persisting;
   }
 
+  /**
+   * Write a version if enough time has passed since the last one.
+   *
+   * Versions mark editing sessions, not keystrokes: snapshotting on every
+   * save would bury the useful marks in noise and fill the table.
+   */
+  async maybeSaveVersion(force = false) {
+    if (!force && Date.now() - this.lastVersionAt < config.versionIntervalMs) return null;
+    if (this.contributors.size === 0 && !force) return null;
+    if (this.savingVersion) return this.savingVersion;
+
+    const authors = [...this.contributors];
+    this.contributors.clear();
+    this.lastVersionAt = Date.now();
+
+    this.savingVersion = (async () => {
+      try {
+        return await saveVersion(this.id, this.doc, {
+          createdBy: authors[authors.length - 1] || null,
+          authors,
+        });
+      } catch (err) {
+        console.error(`[collab] version ${this.id}:`, err.message);
+        // Put the authors back so the next attempt still credits them.
+        for (const id of authors) this.contributors.add(id);
+        return null;
+      } finally {
+        this.savingVersion = null;
+      }
+    })();
+
+    return this.savingVersion;
+  }
+
   scheduleIdleTeardown() {
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(async () => {
       if (this.conns.size > 0) return;
       await this.persist();
+      // The end of a session is the most useful place for a mark, so
+      // take one even if the interval has not elapsed.
+      await this.maybeSaveVersion(this.contributors.size > 0);
       this.doc.destroy();
       rooms.delete(this.id);
     }, config.roomIdleMs);
@@ -315,6 +361,23 @@ async function setupConnection(ws, { documentId, role, user }) {
 
   ws.on('close', cleanup);
   ws.on('error', cleanup);
+}
+
+/**
+ * The live document for a room, when one is open.
+ *
+ * A version named from the UI should capture what the writer is looking
+ * at, which may be a second or two ahead of what has been persisted.
+ */
+export function liveDoc(documentId) {
+  const room = rooms.get(documentId);
+  return room?.loaded ? room.doc : null;
+}
+
+/** Contributors since the last version, for crediting a named version. */
+export function liveContributors(documentId) {
+  const room = rooms.get(documentId);
+  return room ? [...room.contributors] : [];
 }
 
 /** Flush every room before the process exits. */

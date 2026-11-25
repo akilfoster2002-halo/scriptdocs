@@ -40,4 +40,8 @@ export const config = {
   persistDebounceMs: Number(process.env.PERSIST_DEBOUNCE_MS || 2000),
   persistMaxWaitMs: Number(process.env.PERSIST_MAX_WAIT_MS || 10000),
   roomIdleMs: Number(process.env.ROOM_IDLE_MS || 30000),
+
+  // How much editing time one automatic version covers. Versions mark
+  // sessions, not keystrokes.
+  versionIntervalMs: Number(process.env.VERSION_INTERVAL_MS || 3 * 60 * 1000),
 };

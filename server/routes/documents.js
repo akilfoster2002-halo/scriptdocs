@@ -3,6 +3,9 @@ import { requireDocRole } from '../access.js';
 import { requireAuth } from '../auth.js';
 import { one, query } from '../db.js';
 import { notifyDocument, notifyUsers } from '../events.js';
+import { liveContributors, liveDoc } from '../collab.js';
+import { saveVersion } from '../versions.js';
+import * as Y from 'yjs';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -214,6 +217,103 @@ router.delete('/:docId/shares/:userId', requireDocRole('owner'), async (req, res
     notifyDocument(req.params.docId, { type: 'shares:changed' });
     notifyUsers([req.params.userId], { type: 'documents:changed' });
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --------------------------------------------------------------- history
+
+router.get('/:docId/versions', requireDocRole('viewer'), async (req, res, next) => {
+  try {
+    // The snapshots themselves are deliberately not selected: a list of
+    // fifty versions would otherwise be megabytes of CRDT state.
+    const { rows } = await query(
+      `select v.id, v.label, v.created_at, v.bytes, v.created_by,
+              coalesce(
+                (select json_agg(${USER_JSON('a')} order by a.display_name)
+                 from users a where a.id = any(v.authors)),
+                '[]'::json
+              ) as authors
+       from document_versions v
+       where v.document_id = $1
+       order by v.created_at desc`,
+      [req.params.docId]
+    );
+    res.json({ versions: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** The snapshot itself, as raw CRDT state. */
+router.get('/:docId/versions/:versionId', requireDocRole('viewer'), async (req, res, next) => {
+  try {
+    const row = await one(
+      'select ydoc from document_versions where id = $1 and document_id = $2',
+      [req.params.versionId, req.params.docId]
+    );
+    if (!row) return res.status(404).json({ error: 'That version is gone.' });
+
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Cache-Control', 'private, max-age=31536000, immutable');
+    res.send(Buffer.from(row.ydoc));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Name the current state as a version. */
+router.post('/:docId/versions', requireDocRole('editor'), async (req, res, next) => {
+  try {
+    const { label } = req.body ?? {};
+    if (typeof label !== 'string' || !label.trim()) {
+      return res.status(400).json({ error: 'Give the version a name.' });
+    }
+
+    // Prefer the live document: a name should capture what the writer is
+    // looking at, which can be a second ahead of the persisted copy.
+    let ydoc = liveDoc(req.params.docId);
+    let authors = liveContributors(req.params.docId);
+
+    if (!ydoc) {
+      const stored = await one('select ydoc from document_state where document_id = $1', [
+        req.params.docId,
+      ]);
+      ydoc = new Y.Doc();
+      if (stored?.ydoc) Y.applyUpdate(ydoc, new Uint8Array(stored.ydoc), 'persistence');
+      authors = [];
+    }
+
+    const version = await saveVersion(req.params.docId, ydoc, {
+      label: label.trim().slice(0, 120),
+      createdBy: req.user.id,
+      authors: authors.length ? authors : [req.user.id],
+    });
+
+    notifyDocument(req.params.docId, { type: 'versions:changed' });
+    res.status(201).json({ version });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:docId/versions/:versionId', requireDocRole('editor'), async (req, res, next) => {
+  try {
+    const { label } = req.body ?? {};
+    const clean =
+      typeof label === 'string' && label.trim() ? label.trim().slice(0, 120) : null;
+
+    const updated = await one(
+      `update document_versions set label = $3
+       where id = $1 and document_id = $2
+       returning id, label`,
+      [req.params.versionId, req.params.docId, clean]
+    );
+    if (!updated) return res.status(404).json({ error: 'That version is gone.' });
+
+    notifyDocument(req.params.docId, { type: 'versions:changed' });
+    res.json({ version: updated });
   } catch (err) {
     next(err);
   }

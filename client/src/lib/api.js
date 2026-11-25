@@ -88,6 +88,23 @@ export const docs = {
   removeShare: (id, userId) =>
     request(`/api/documents/${id}/shares/${userId}`, { method: 'DELETE' }),
 
+  listVersions: (id) => request(`/api/documents/${id}/versions`).then((r) => r.versions),
+  nameVersion: (id, label) =>
+    request(`/api/documents/${id}/versions`, { method: 'POST', body: { label } }),
+  renameVersion: (id, versionId, label) =>
+    request(`/api/documents/${id}/versions/${versionId}`, { method: 'PATCH', body: { label } }),
+
+  /** The snapshot itself, as raw CRDT bytes. */
+  async versionState(id, versionId) {
+    const response = await fetch(`/api/documents/${id}/versions/${versionId}`, {
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      throw new ApiError('Could not load that version.', response.status);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  },
+
   listComments: (id) => request(`/api/documents/${id}/comments`).then((r) => r.comments),
   addComment: (id, body, quote) =>
     request(`/api/documents/${id}/comments`, { method: 'POST', body: { body, quote } }).then(

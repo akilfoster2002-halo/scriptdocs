@@ -9,6 +9,8 @@ import Avatar from '../components/Avatar.jsx';
 import UserMenu from '../components/UserMenu.jsx';
 import ShareDialog from '../components/ShareDialog.jsx';
 import ExportMenu from '../components/ExportMenu.jsx';
+import VersionHistory from '../components/VersionHistory.jsx';
+import VersionPreview from '../components/VersionPreview.jsx';
 import DocumentSurface from '../components/DocumentSurface.jsx';
 
 export default function Editor() {
@@ -24,6 +26,9 @@ export default function Editor() {
   const [shareOpen, setShareOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [editor, setEditor] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyBump, setHistoryBump] = useState(0);
+  const [viewingVersion, setViewingVersion] = useState(null);
   const titleTimer = useRef(null);
 
   const canEdit = role === 'owner' || role === 'editor';
@@ -63,6 +68,10 @@ export default function Editor() {
       }
       if (event.type === 'comments:changed') {
         setCommentsBump((n) => n + 1);
+        return;
+      }
+      if (event.type === 'versions:changed') {
+        setHistoryBump((n) => n + 1);
         return;
       }
       // document:updated and shares:changed both need fresh metadata.
@@ -110,6 +119,17 @@ export default function Editor() {
       }, 600);
     },
     [canEdit, docId]
+  );
+
+  const onRestore = useCallback(
+    async (content) => {
+      if (!editor) return;
+      editor.commands.setContent(content, { emitUpdate: true });
+      editor.commands.focus('start');
+      setViewingVersion(null);
+      setHistoryBump((n) => n + 1);
+    },
+    [editor]
   );
 
   useEffect(() => {
@@ -186,6 +206,17 @@ export default function Editor() {
             author={doc?.owner ? personName(doc.owner) : ''}
           />
 
+          <button
+            type="button"
+            className={historyOpen ? 'btn btn-ghost btn-on' : 'btn btn-ghost'}
+            onClick={() => {
+              setHistoryOpen((v) => !v);
+              if (historyOpen) setViewingVersion(null);
+            }}
+          >
+            History
+          </button>
+
           {canComment && (
             <button
               type="button"
@@ -206,33 +237,62 @@ export default function Editor() {
         </div>
       </header>
 
-      {ydoc && provider ? (
-        <DocumentSurface
-          key={docId}
+      {viewingVersion && (
+        <VersionPreview
           docId={docId}
-          doc={doc}
-          ydoc={ydoc}
-          provider={provider}
-          identity={identity}
+          version={viewingVersion}
           canEdit={canEdit}
-          canComment={canComment}
-          isOwner={role === 'owner'}
-          commentsOpen={commentsOpen}
-          commentsBump={commentsBump}
-          onCloseComments={() => setCommentsOpen(false)}
-          onEditor={setEditor}
+          onRestore={onRestore}
+          onBack={() => setViewingVersion(null)}
         />
-      ) : (
-        <>
-          <div className="toolbar" />
-          <div className="editor-body">
-            <div className="page-scroll">
-              <div className="page">
-                <p className="muted">Opening the script…</p>
+      )}
+
+      {/* The editor stays mounted while a version is on screen: it owns the
+          live connection, and tearing it down to look at history would drop
+          everyone's presence and reopen the socket on the way back. */}
+      <div className={viewingVersion ? 'editor-stage editor-stage-hidden' : 'editor-stage'}>
+        {ydoc && provider ? (
+          <DocumentSurface
+            key={docId}
+            docId={docId}
+            doc={doc}
+            ydoc={ydoc}
+            provider={provider}
+            identity={identity}
+            canEdit={canEdit}
+            canComment={canComment}
+            isOwner={role === 'owner'}
+            commentsOpen={commentsOpen}
+            commentsBump={commentsBump}
+            onCloseComments={() => setCommentsOpen(false)}
+            onEditor={setEditor}
+          />
+        ) : (
+          <>
+            <div className="toolbar" />
+            <div className="editor-body">
+              <div className="page-scroll">
+                <div className="page">
+                  <p className="muted">Opening the script…</p>
+                </div>
               </div>
             </div>
-          </div>
-        </>
+          </>
+        )}
+      </div>
+
+      {historyOpen && (
+        <VersionHistory
+          docId={docId}
+          canEdit={canEdit}
+          refreshKey={historyBump}
+          selectedId={viewingVersion?.id ?? null}
+          onSelect={setViewingVersion}
+          onClose={() => {
+            setHistoryOpen(false);
+            setViewingVersion(null);
+          }}
+        />
       )}
 
       {shareOpen && (
